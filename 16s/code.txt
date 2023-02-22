@@ -1,0 +1,91 @@
+#Set working directoy for mothur
+
+set.dir(input=D:\Bioinformatics\Nile University\Integrative\System-Biology\16s\Data, output=D:\Bioinformatics\Nile University\Integrative\System-Biology\16s\test)
+
+#Make stability files that would be used later for making contigs
+#Because my files are compressed then I will put in type=gz per mothur SOP
+make.file(inputdir=D:\Bioinformatics\Nile University\Integrative\System-Biology\16s\Data\, type=gz, prefix=stability)
+
+#I will make contigs from each sample's pair of reads, this command will produce useful #files that will be needed lateron 
+#such as .trim.contigs.fasta , .contigs.count_table(That contain sequence data and group identity for each sample)
+make.contigs(file=stability.files)
+
+#Get summary for fasta files after assembly
+summary.seqs(fasta=current)
+#filter reads according to length, maxambig, maxhomop ; since my reads mainly range from 430 bp to 470 bp I made the max length
+#to be 480bp
+
+screen.seqs(fasta=current,group=current,maxambig=0,maxhomop=8,maxlength=480)
+# get summary for good fasta
+summary.seqs(fasta=current)
+#how many reads in each sample
+count.groups(group=current)
+#get the unique sequences in the data
+unique.seqs(fasta=current) 
+# get summary of unique fasta
+
+summary.seqs(input=current) # 
+summary.seqs(fasta=current,name=current) 
+#merge names and groups to get count_table [ open on excel ] no of sequences = 16421, sum of their totals = 128865
+count.seqs(name=current, group=current)
+
+#get summary using count
+summary.seqs(fasta=current,count=current)
+#trim primer sequences and barcode using the primers provided in OLIGO file
+trim.seqs(fasta=current, oligos=oligo)
+#decrease size of reference to fit the desired origin we want to align upon
+pcr.seqs(fasta=D:\Bioinformatics\Nile University\Integrative\Week 3\Tutorial\Lab ext\MiSeq_SOP\silva.bacteria\silva.bacteria.fasta, start=6000, end=25319, keepdots=F, processors=8)
+
+#Rename the file
+ rename.file(input=silva.bacteria.pcr.fasta, new=silva.v4.fasta)
+
+#Align the sequences
+align.seqs(fasta=stability.trim.contigs.good.unique.fasta, reference=silva.v4.fasta)
+
+# to make sure that all sequences on the same line
+summary.seqs(count=current,fasta=stability.trim.contigs.good.unique.align)
+
+## filter to get all sequences begin at same start and end at same end
+screen.seqs(fasta=stability.trim.contigs.good.unique.align,count=stability.trim.contigs.good.count_table, start=388, end=19316)
+
+# summary for result
+summary.seqs(count=current,fasta=current)
+
+
+
+# remove gaps in the file
+filter.seqs(fasta=stability.trim.contigs.good.unique.good.align, vertical=T, trump=.)
+
+#summary
+summary.seqs(fasta=current,count=current)
+
+# after remove gaps, some sequences are produced like each others
+unique.seqs(fasta=current,count=current)
+
+
+ #denoising
+pre.cluster(fasta=current, count=current, diffs=2)
+#Chimera search
+chimera.vsearch(fasta=current,count=current,dereplicate=t)
+
+#remove sequences that have chimera
+remove.seqs(fasta=current,accnos=current)
+
+#direct to OTU
+#determine distance
+dist.seqs(fasta=current,cutoff=0.03)
+
+#clustering, column means dist file 
+cluster(column=current,count=current)
+
+# shared, list means output of cluster
+make.shared(list=current,count=current,label=0.03)
+
+# alpha diversity(giving only one metric for richness and another metrix for richness and #evennes
+summary.single(shared=stability.trim.contigs.good.unique.good.filter.unique.precluster.pick.opti_mcc.shared, calc=chao-shannon)
+
+#differential analysis, is there a significance between early and late
+amova(phylip=current,design=mouse.time.design)
+
+#which OTU changed between late and early
+lefse(shared=current,design=current)
